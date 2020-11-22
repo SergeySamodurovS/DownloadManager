@@ -23,7 +23,7 @@ namespace DownloadManagerConsole
                     count++;
                 }
             }
-            
+            Console.ReadKey();
         }
 
         public static void Success(string message)
