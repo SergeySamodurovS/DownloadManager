@@ -1,7 +1,6 @@
 ﻿using DownloadeManager;
 using System;
 using System.IO;
-using System.Linq;
 
 namespace DownloadManagerConsole
 {
@@ -24,11 +23,7 @@ namespace DownloadManagerConsole
                     count++;
                 }
             }
-
-            while (downloader.queueFilesToDownload.Any())
-            {
-                downloader.AddTask();
-            }
+            
         }
 
         public static void Success(string message)

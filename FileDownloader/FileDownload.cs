@@ -1,6 +1,6 @@
 ﻿using DownloadManager;
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -12,17 +12,16 @@ namespace DownloadeManager
     {
         public event Action<string> OnDownloaded;
         public event Action<string, Exception> OnFailed;
-        public int DegreeOfParallelism { private set; get; } = 4;
-        public bool IsSetDegreeOfParallelism { private set; get; } = false;
+        private int DegreeOfParallelism { set; get; } = 4;
+        private bool IsSetDegreeOfParallelism { set; get; } = false;
 
-        public Queue<FileModel> queueFilesToDownload;
-        private List<Task> downloadTasks;
-        HttpClient client;
+        private ConcurrentQueue<FileModel> queueFilesToDownload;
+        private HttpClient client;
+        private int countOfDownloadTasks;
 
         public FileDownload()
         {
-            queueFilesToDownload = new Queue<FileModel>();
-            downloadTasks = new List<Task>();
+            queueFilesToDownload = new ConcurrentQueue<FileModel>();
             client = new HttpClient();
         }
 
@@ -34,6 +33,7 @@ namespace DownloadeManager
                 Url = url,
                 PathToSave = pathToSave
             });
+            AddTask();
         }
 
         public void SetDegreeOfParallelism(int degreeOfParallelism)
@@ -47,18 +47,22 @@ namespace DownloadeManager
             IsSetDegreeOfParallelism = true;
         }
 
-        public void AddTask()
+        private async Task AddTask()
         {
-            if (downloadTasks.Count < DegreeOfParallelism)
+            while (!queueFilesToDownload.IsEmpty)
             {
-                var file = queueFilesToDownload.Dequeue();
-                downloadTasks.Add(DownloadFileAsync(file));
+                if (countOfDownloadTasks < DegreeOfParallelism)
+                {
+                    countOfDownloadTasks++;
+                    queueFilesToDownload.TryDequeue(out FileModel file);
+                    await DownloadFileAsync(file);
+                }
             }
         }
 
-        public async Task DownloadFileAsync(FileModel file)
+        private async Task DownloadFileAsync(FileModel file)
         {
-            await Task.Factory.StartNew(async () => {
+            await Task.Run(async () => {
                 try
                 {
                     using (var response = client.GetAsync(file.Url))
@@ -75,6 +79,7 @@ namespace DownloadeManager
                     OnFailed?.Invoke($"Downloading of file {file.FileId} canceled", e);
                 }
             });
+            countOfDownloadTasks--;
         }
     }
 }
